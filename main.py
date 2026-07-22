@@ -1,7 +1,10 @@
 import os
+import random
+import datetime
 from pathlib import Path
 
 import discord
+from discord.ext import tasks
 import yaml
 from dotenv import load_dotenv
 
@@ -35,16 +38,41 @@ CONFIG = load_discord_ids("temari")
 STARTUP_CHANNEL_ID = CONFIG["STARTUP_CHANNEL_ID"]
 
 intents = discord.Intents.default()
+# チャット反応は削除しましたが、後々必要になる場合を考慮してインテント自体は残しています
+intents.message_content = True 
 client = discord.Client(intents=intents)
 
+# 日本時間の13時 (JST) を設定
+JST = datetime.timezone(datetime.timedelta(hours=9))
+LUNCH_TIME = datetime.time(hour=13, minute=0, tzinfo=JST)
+
+@tasks.loop(time=LUNCH_TIME)
+async def daily_lunch_request():
+    """毎日13時にランダムな食べ物を要求するタスク"""
+    channel = client.get_channel(STARTUP_CHANNEL_ID)
+    if channel is not None:
+        # ランダムに出力する食べ物のリスト
+        foods = [
+            "ハンバーグ", "ラーメン", "焼肉", "肉じゃが", 
+            "オムレツ", "パフェ", "唐揚げ", "お寿司"
+        ]
+        food = random.choice(foods)
+        
+        # 指定されたシンプルなセリフ
+        await channel.send(f"プロデューサー今日は{food}食べたい")
 
 @client.event
 async def on_ready():
     print(f"Logged in as {client.user}")
+    
+    # 13時の定期タスクを開始
+    if not daily_lunch_request.is_running():
+        daily_lunch_request.start()
 
     channel = client.get_channel(STARTUP_CHANNEL_ID)
     if channel is not None:
         await channel.send("起動しました")
 
+# チャット反応 (on_message) は削除しました
 
 client.run(TOKEN)
